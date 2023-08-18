@@ -15,22 +15,20 @@ use App\Http\Controllers\AuthController;
 |
 */
 
-Route::prefix('v1')->group(function () {
-
-    /// Declare the heartbeat route for the API
     Route::any('/', function () {
-        return response()->json(['message' => 'Products Api'], 200);
+        return response()->json(['message' => 'Welcome to Products Api'], 200);
     })->name('welcome');
 
     // Declare unauthenticated routes
-    Route::group(['middleware' => 'guest'], function () {
+    Route::group(['middleware' => 'guest', 'prefix'=>'v1'], function ($router) {
 
         Route::post('register', [AuthController::class, 'register'])->name('register');
 
         Route::post('login', [AuthController::class, 'login'])->name('login');
 
         Route::post('logout', [AuthController::class, 'logout'])->name('logout');
-    });
+
+        Route::post('refresh', [AuthController::class, 'refresh'])->name('refresh');
     });
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
