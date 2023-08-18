@@ -6,55 +6,72 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\{Hash, Cache};
 use Symfony\Component\HttpFoundation\Response;
-use App\Http\Requests\{SignUpRequest, Login};
-
+use Auth;
+use Validator;
 class AuthController extends Controller
 {
+    public function __construct(){
+        $this->middleware('auth:api',['except'=>['login','register']]);
+    }
     //Methods for authentication functionality
-    public function register(SignUpRequest $request): JsonResponse
-    {
-        // Logic for handling user registration
-        $user = User::create($request->validated());
+    public function register (Request $request){
+        $validator =Validator::make($request->all(),[
+            'first_name'=> 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'username' => 'required|string|max:255|unique:users',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:6', 
+            'confirm_password' => 'required|string|min:6',
+            'phone_number' => 'required|string|max:20|unique:users'
+        ]);
+        if($validator->fails()){
+        return response () ->json ( $validator->errors() ->toJson(),400);
+        }
+        $user = User::create(array_merge(
+        $validator->validated(),
+        ['password'=>bcrypt ($request->password) ]
+        ));
+        
+        return response () -> json([
+        'message'=> 'User successfully registered',
+        'user'=>$user
+        ],201);
+        }
 
-        return response()->json([
-            'message' => 'User created successfully',
-            'user' => $user
-        ], Response::HTTP_CREATED);
+        
+        public function login (Request $request){
+        $validator =Validator::make($request->all(),[
+            'email' => 'required|string|email|max:255',
+            'password' => 'required|string|min:6', 
+        ]);
+        if($validator->fails()){
+        return response () ->json ( $validator->errors() ->toJson(),422);
+        if (!$token=auth()->attempt ($validator->validated())){
+            return response()->json(['error'=>'Unauthorized'],401);
+        }}
+
+        return response ()->json([
+            'message'=> 'You have successfully logged in',
+        ],201);
     }
-
-    public function login(Login $request): JsonResponse
-    {
-        $user = User::where('email', $request->email)->first();
-
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => 'Invalid credentials',
-            ], Response::HTTP_UNAUTHORIZED);
-        }
-
-        $token = $user->generateUserRole();
-
-        Cache::put('user' . $user->id, $user, now()->addHour(1));
-
-        return response()->json([
-            'message' => 'User logged in successfully',
-            'user' => $user,
-            'token' => $token
-        ], Response::HTTP_OK);
-    
-        }
-        public function logout(): JsonResponse
-    {
-
-        Cache::forget('user' . auth()->user()->id);
-        // Logic for handling user logout
+    public function logout() {
         auth()->logout();
-
         return response()->json([
-            'message' => 'User logged out successfully'
-        ], Response::HTTP_OK);
-    }
+            'message' => 'User logged out'
+        ]);
     }
 
+        
+        public function createNewToken($token)
+        {
+            return response()->json([
+                'access_token'=>$token,
+                'token_type'=>'bearer',
+                'expires_in'=>auth()->factory()->getTTL()*60,
+                'user'=>auth()->user()
+
+            ]);
+        
+        }
+    }
